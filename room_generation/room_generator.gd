@@ -46,6 +46,7 @@ func generate_rooms():
 	for i in number_of_rooms:
 		var node = RigidBody2D.new()
 		var cr = ColorRect.new()
+		cr.script = load("res://room_generation/color_rect.gd")
 		cr.color = Color(randf(), randf(), randf(), 1)
 		cr.size = round_room_size(get_random_point_in_circle(max_room_size)).abs()
 		cr.position = node.position - (cr.size / 2)
