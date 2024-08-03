@@ -5,15 +5,17 @@ extends Node2D
 @export var min_room_size: int = 4
 @export var max_room_size: int = 16
 @export var room_generation_radius: int = 50
-@export var selected_room_size_treshold: float = 20
+@export_range(0, 1) var selected_room_size_treshold: float = 20
 
 var rooms: Dictionary = {}
 var selected_rooms: Array = []
-var selected_room_centers: PackedVector2Array = []
 
 var delaunay: Delaunay
 var delaunay_rect: Rect2 
 var triangles: Array
+
+var seperating = false
+var can_triangulate = false
 
 func get_random_point_in_circle(radius: float) -> Vector2:
 	var t = 2* PI * randf()
@@ -49,17 +51,23 @@ func generate_rooms():
 		cr.position = node.position - (cr.size / 2)
 		cr.z_index = -1
 		node.position = round_room_size(get_random_point_in_circle(room_generation_radius))
+		node.mass = 100
 		rooms[node] = {"size": cr.size, "position": node.position}
 		add_child(node)
 		node.add_child(cr)
 
 func regenerate_rooms():
 	selected_rooms = []
-	selected_room_centers = []
 	for child in rooms.keys():
 		child.queue_free()
 	rooms.clear()
 	generate_rooms()
+	# seperate
+	for room in rooms.keys():
+		add_colison_shape(room)
+	seperating = true
+	get_tree().create_timer(1).timeout.connect(func():if seperating: var moving = are_rooms_moving(); seperating  = !moving; can_triangulate = moving)
+	
 
 func add_colison_shape(room: Node2D):
 	if room.get_child_count() == 2:
@@ -72,30 +80,54 @@ func add_colison_shape(room: Node2D):
 	room.add_child(collison_shape)
 
 
-func select_main_rooms(treshold: float) -> Array[RigidBody2D]:
-	var r: Array[RigidBody2D] = []
-	for room in rooms.keys():
-		var size: Vector2 = rooms.get(room).get("size")
-		if size.x * size.y >= treshold:
-			room.get_child(0).color = Color.RED
-			r.append(room)
-		else:
-			room.get_child(0).color.a =  0.7
-	return r
+func select_main_rooms(treshold: float) -> Array:
+	var r: Array = rooms.keys()
+	r.sort_custom(func(a: Node2D, b: Node2D): return rooms.get(a).get("size") > rooms.get(b).get("size"))
+	return r.slice(0, int(r.size() * treshold)) 
 
+
+func calculate_room_mean() -> Vector2:
+	var accum = Vector2.ZERO
+	for room in rooms.keys():
+		accum += rooms.get(room).get("size")
+	return accum / rooms.keys().size()
+	
 
 func get_room_center(room: Node2D) -> Vector2:
-	return room.position  #- (rooms.get(room).get("size") / 2)
+	return rooms.get(room).get("position") 
+
+func triangulate_selected_rooms():
+	var selected_room_centers  = []
+	for room in selected_rooms:
+		selected_room_centers.append(get_room_center(room))
+
+		delaunay_rect = Delaunay.calculate_rect(selected_room_centers)
+		delaunay = Delaunay.new(delaunay_rect)
+		for point in selected_room_centers:
+			delaunay.add_point(point)
+		triangles = delaunay.triangulate()
+
+func are_rooms_moving() -> bool:
+	for room in rooms.keys() as Array[RigidBody2D]:
+		if not room.linear_velocity.is_zero_approx():
+			return false
+	return true
+
+func update_room_position():
+	for room in rooms.keys():
+		rooms.get(room)["position"] = room.position
+
 
 func _ready():
-	generate_rooms()
+	regenerate_rooms()
+
 
 func _draw():
 	draw_set_transform_matrix(global_transform.affine_inverse())
-	for center in selected_room_centers:
-		draw_circle(center, 2, Color.YELLOW)
+	if seperating: 
+		return
 	if delaunay_rect:
-		draw_rect(delaunay_rect, Color(0.2,0.3, 0.8, 0.5))
+		draw_rect(delaunay_rect, Color(0.2,0.3, 0.8, 0.3))
 	for trinagle in triangles as Array[Delaunay.Triangle]:
 		if delaunay.is_border_triangle(trinagle):
 			continue
@@ -106,17 +138,15 @@ func _draw():
 func _process(_delta):
 	if Input.is_action_just_pressed("regenrate"):
 		regenerate_rooms()
-	if Input.is_action_just_pressed("seprate"):
-		for room in rooms.keys():
-			add_colison_shape(room)
-	if Input.is_action_just_pressed("select"):
+	if can_triangulate:
+		update_room_position()
 		selected_rooms = select_main_rooms(selected_room_size_treshold)
 		for room in selected_rooms:
-			selected_room_centers.append(get_room_center(room))
-
-		delaunay_rect = Delaunay.calculate_rect(selected_room_centers)
-		delaunay = Delaunay.new(delaunay_rect)
-		for point in selected_room_centers:
-			delaunay.add_point(point)
-		triangles = delaunay.triangulate()
+			room.get_child(0).color = Color.RED
+		for room in rooms.keys():
+			if not selected_rooms.has(room):
+				remove_child(room)
+		triangulate_selected_rooms()
+		can_triangulate = false
+	
 	queue_redraw()
