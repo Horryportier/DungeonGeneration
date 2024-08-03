@@ -8,5 +8,6 @@ number_of_rooms = 200
 min_room_size = 10
 max_room_size = 64
 room_generation_radius = 64
+selected_room_size_treshold = 900.0
 
 [node name="Camera2D" type="Camera2D" parent="."]
