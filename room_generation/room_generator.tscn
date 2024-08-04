@@ -4,10 +4,10 @@
 
 [node name="RoomGenerator" type="Node2D"]
 script = ExtResource("1_ac6gd")
-number_of_rooms = 50
+number_of_rooms = 200
 min_room_size = 16
 max_room_size = 64
-room_generation_radius = 64
-selected_room_size_treshold = 0.3
+room_generation_radius = 200
+selected_room_size_treshold = 0.303
 
 [node name="Camera2D" type="Camera2D" parent="."]
