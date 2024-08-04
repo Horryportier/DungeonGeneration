@@ -1,13 +1,18 @@
-[gd_scene load_steps=2 format=3 uid="uid://bw1165nygn46s"]
+[gd_scene load_steps=3 format=3 uid="uid://bw1165nygn46s"]
 
 [ext_resource type="Script" path="res://room_generation/room_generator.gd" id="1_ac6gd"]
 
+[sub_resource type="Gradient" id="Gradient_kib3s"]
+offsets = PackedFloat32Array(0.268908, 0.781513, 1)
+colors = PackedColorArray(1.54018e-06, 0.905693, 0.424678, 1, 1, 0.366667, 0, 1, 1, 0.11, 0.317666, 1)
+
 [node name="RoomGenerator" type="Node2D"]
 script = ExtResource("1_ac6gd")
-number_of_rooms = 10
-min_room_size = 16
+number_of_rooms = 200
+min_room_size = 24
 max_room_size = 64
 room_generation_radius = 200
-selected_room_size_treshold = 1.0
+selected_room_size_treshold = 0.1
+edge_color = SubResource("Gradient_kib3s")
 
 [node name="Camera2D" type="Camera2D" parent="."]

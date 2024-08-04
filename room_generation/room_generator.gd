@@ -8,6 +8,10 @@ extends Node2D
 @export var room_generation_radius: int = 50
 @export_range(0, 1) var selected_room_size_treshold: float = 20
 
+
+@export_group("debug")
+@export var edge_color: Gradient 
+
 func get_random_point_in_circle(radius: float) -> Vector2:
 	var t = 2* PI * randf()
 	var u = randf() + randf()
@@ -95,7 +99,7 @@ func make_room(id: int) -> Room:
 
 func generate_rooms():
 	for i in number_of_rooms:
-		var room =  make_room(i)
+		var room =  make_room(i + 1)
 		rooms[room.id] = room
 		
 
@@ -191,12 +195,9 @@ func _draw():
 		return
 	if delaunay_rect:
 		draw_rect(delaunay_rect, Color(0.2,0.3, 0.8, 0.3))
-	for trinagle in triangles as Array[Delaunay.Triangle]:
-		if delaunay.is_border_triangle(trinagle):
-			continue
-		draw_line(trinagle.edge_ab.a, trinagle.edge_ab.b, Color.GREEN) 
-		draw_line(trinagle.edge_bc.a, trinagle.edge_bc.b, Color.GREEN) 
-		draw_line(trinagle.edge_ca.a, trinagle.edge_ca.b, Color.GREEN) 
+	for edge: RoomGraph.RoomGraphEdge in room_graph.edges:
+		var color = edge_color.sample(remap(edge.weight, 0, 200, 0, 1))
+		draw_line(edge.node_a.value.get_room_center(), edge.node_b.value.get_room_center(), color,  -1, true)
 
 func _process(_delta):
 	if Input.is_action_just_pressed("regenrate"):
