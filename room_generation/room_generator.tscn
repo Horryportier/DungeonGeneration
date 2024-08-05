@@ -33,6 +33,7 @@ sources/0 = SubResource("TileSetAtlasSource_74l2t")
 script = ExtResource("1_ac6gd")
 min_room_size = 16
 max_room_size = 64
+hallway_width = 2
 map_padding = 0.5
 edge_color = SubResource("Gradient_kib3s")
 

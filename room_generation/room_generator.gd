@@ -3,9 +3,8 @@ extends Node2D
 
 ##=========================================================================
 ## RoomGenrator
-## TODO:
-##	- do something about rooms being in negative space
-##
+## TODO: 
+##	refactor it into drop in solution
 ##=========================================================================
 
 
@@ -16,8 +15,10 @@ extends Node2D
 @export var room_generation_radius: int = 50
 @export_range(0, 1) var selected_room_size_treshold: float = 0.3
 
-@export_group("halways_generation")
+@export_group("hallways_generation")
 @export_range(0, 1) var non_mst_edges_treshold: float = 0.1
+@export var hallway_width: int = 4
+
 
 @export_group("map_generation")
 @export_range(0, 1) var map_padding: float = 0.1
@@ -31,6 +32,7 @@ extends Node2D
 
 @onready var tilemap: TileMap = $TileMap
 
+enum LineOrientation { Vertical, Horizontal }
 
 class Room:
 	var id: int
@@ -82,6 +84,11 @@ var mask: RoomMask
 
 var seperating = false
 var can_triangulate = false
+
+func get_line_orinetation(a: Vector2i, b: Vector2i) -> LineOrientation:
+	if a.x != b.x:
+		return LineOrientation.Horizontal
+	return LineOrientation.Vertical
 
 func line_to_vec2i_range(a: Vector2i ,b: Vector2i) -> Array[Vector2i]:
 	var accum: Array[Vector2i] = [a]
@@ -287,9 +294,16 @@ func paint_room(room: Room):
 
 
 func paint_hallway(a: Vector2, b: Vector2):
+	var orientation = get_line_orinetation(a, b)
 	for vec in line_to_vec2i_range(a, b):
-		if tilemap.get_cell_atlas_coords(0, vec) != Vector2i(1,0):
-			tilemap.set_cell(0, vec, 0, Vector2i(2,0))
+		for i in hallway_width:
+			match orientation:
+				LineOrientation.Vertical:
+					vec.x += i  
+				LineOrientation.Horizontal:
+					vec.y -= i 
+			if tilemap.get_cell_atlas_coords(0, vec) != Vector2i(1,0):
+				tilemap.set_cell(0, vec, 0, Vector2i(2,0))
 
 func _ready():
 	regenerate_rooms()
