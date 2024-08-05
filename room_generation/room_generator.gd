@@ -6,14 +6,21 @@ extends Node2D
 @export var min_room_size: int = 4
 @export var max_room_size: int = 16
 @export var room_generation_radius: int = 50
-@export_range(0, 1) var selected_room_size_treshold: float = 20
+@export_range(0, 1) var selected_room_size_treshold: float = 0.3
 
+@export_group("halways_generation")
+@export_range(0, 1) var non_mst_edges_treshold: float = 0.1
 
 @export_group("debug")
 @export var edge_color: Gradient 
+@export var delaunay_rect_debug: bool
+@export var mst_debug: bool
+@export var pathways_debug: bool
 
 func get_random_point_in_circle(radius: float) -> Vector2:
+	randomize()
 	var t = 2* PI * randf()
+	randomize()
 	var u = randf() + randf()
 	var r = null
 	if u > 1:
@@ -67,6 +74,8 @@ var delaunay: Delaunay
 var delaunay_rect: Rect2 
 var triangles: Array
 var room_graph: RoomGraph
+var mst: Array[RoomGraph.RoomGraphEdge]
+var hallways_lines: Array[Array]
 
 
 var seperating = false
@@ -185,6 +194,18 @@ func triange_edge_to_room_edge(edge: Delaunay.Edge) -> Array:
 		distance = node_a.get_room_center().distance_to(node_b.get_room_center())
 	return [rooms.find_key(node_a), rooms.find_key(node_b), distance]
 
+
+func add_not_used_eges(treshold: float):
+	var non_mst_edges = room_graph.edges.filter(func(edge): if mst.has(edge): return false else: return true)
+	mst.append_array( non_mst_edges.slice(0, int(non_mst_edges.size() * treshold)))
+
+func get_lines_from_edges(edge: RoomGraph.RoomGraphEdge) -> Array[Vector2]:
+	var node_a: Vector2 = edge.node_a.value.get_room_center()
+	var node_b: Vector2 = edge.node_b.value.get_room_center()
+	
+	return [ node_a, Vector2(node_b.x, node_a.y), node_b, Vector2(node_b.x, node_a.y) ]
+
+	
 func _ready():
 	regenerate_rooms()
 
@@ -195,9 +216,17 @@ func _draw():
 		return
 	if delaunay_rect:
 		draw_rect(delaunay_rect, Color(0.2,0.3, 0.8, 0.3))
-	for edge: RoomGraph.RoomGraphEdge in room_graph.edges:
-		var color = edge_color.sample(remap(edge.weight, 0, 200, 0, 1))
-		draw_line(edge.node_a.value.get_room_center(), edge.node_b.value.get_room_center(), color,  -1, true)
+	#for edge: RoomGraph.RoomGraphEdge in room_graph.edges:
+	#	var color = edge_color.sample(remap(edge.weight, 0, 200, 0, 1))
+	#	draw_line(edge.node_a.value.get_room_center(), edge.node_b.value.get_room_center(), color,  -1, true)
+	if mst_debug:
+		for edge: RoomGraph.RoomGraphEdge in mst:
+			var color = edge_color.sample(remap(edge.weight, 0, 200, 0, 1))
+			draw_line(edge.node_a.value.get_room_center(), edge.node_b.value.get_room_center(), color,  -1, true)
+	if hallways_lines:
+		for lines in hallways_lines:
+			draw_line(lines[0], lines[1], Color.BLUE,  2, true)
+			draw_line(lines[2], lines[3], Color.PINK,  2, true)
 
 func _process(_delta):
 	if Input.is_action_just_pressed("regenrate"):
@@ -213,7 +242,11 @@ func _process(_delta):
 				remove_child(room.body)
 		triangulate_selected_rooms()
 		room_graph =  crate_graph()
-		room_graph.print_edges()
+		#room_graph.print_edges()
+		mst = room_graph.minimal_spanning_tree()
+		add_not_used_eges(non_mst_edges_treshold)
+		for edge in mst:
+			hallways_lines.append(get_lines_from_edges(edge))
 		can_triangulate = false
 	
 	queue_redraw()

@@ -55,3 +55,47 @@ func print_edges():
 	for edge in edges:
 		printt("w: %d	a: %d	b: %d" % [edge.weight, edge.node_a.id, edge.node_b.id])
 
+func minimal_spanning_tree() -> Array[RoomGraphEdge]: 
+	var sorted_edges = self.edges
+	sorted_edges.sort_custom(func(a: RoomGraphEdge, b: RoomGraphEdge): if a.weight < b.weight: return true else: return false)
+	var mst: Array[RoomGraphEdge] = []
+	
+	var parent = {}
+	var rank = {}
+	
+	for vertex in self.nodes:
+		make_set(vertex, parent, rank)
+
+	for edge in sorted_edges:
+		var u = edge.node_a.id
+		var v = edge.node_b.id
+		var found_u = find_set(u, parent)
+		var found_v = find_set(v, parent)
+		if found_u != found_v:
+			mst.append(edge)
+			union(u, v, parent, rank)
+		
+	
+	return mst
+	
+func make_set(v, parent, rank):
+	parent[v] = v;
+	rank[v] = 0 
+
+func find_set(v, parent):
+	if not v: 
+		return null
+	if parent.get(v) != v:
+		parent[v] = find_set(parent.get(v), parent)
+	return parent[v]
+
+func union(u, v, parent, rank):
+	var root_u = find_set(u, parent)
+	var root_v = find_set(v, parent)
+	if root_u != root_v:
+		if rank.get(root_u) > rank.get(root_v):
+			parent[root_v] = root_u
+		else:
+			parent[root_u] = root_v
+			if rank[root_u] == rank.get(root_v):
+				rank[root_v] += 1
