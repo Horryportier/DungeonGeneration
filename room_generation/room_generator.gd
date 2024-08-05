@@ -1,6 +1,14 @@
 class_name RoomGenerator
 extends Node2D
 
+##=========================================================================
+## RoomGenrator
+## TODO:
+##	- do something about rooms being in negative space
+##
+##=========================================================================
+
+
 @export_group("room_generation")
 @export var number_of_rooms: int = 100
 @export var min_room_size: int = 4
@@ -11,23 +19,17 @@ extends Node2D
 @export_group("halways_generation")
 @export_range(0, 1) var non_mst_edges_treshold: float = 0.1
 
+@export_group("map_generation")
+@export_range(0, 1) var map_padding: float = 0.1
+
 @export_group("debug")
 @export var edge_color: Gradient 
 @export var delaunay_rect_debug: bool
 @export var mst_debug: bool
 @export var pathways_debug: bool
+@export var show_bodies: bool
 
-func get_random_point_in_circle(radius: float) -> Vector2:
-	randomize()
-	var t = 2* PI * randf()
-	randomize()
-	var u = randf() + randf()
-	var r = null
-	if u > 1:
-		r = 2-u 
-	else:
-		r = u 
-	return Vector2(radius * r * cos(t), radius * r * sin(t))
+@onready var tilemap: TileMap = $TileMap
 
 
 class Room:
@@ -59,7 +61,7 @@ class Room:
 		self.rect.position = self.body.position
 
 	func get_room_center() -> Vector2:
-		return self.body.position
+		return self.body.position + (self.rect.size * 0.5)
 
 	func is_room_moving() -> bool:
 		if not self.body.linear_velocity.is_zero_approx():
@@ -76,10 +78,42 @@ var triangles: Array
 var room_graph: RoomGraph
 var mst: Array[RoomGraph.RoomGraphEdge]
 var hallways_lines: Array[Array]
-
+var mask: RoomMask
 
 var seperating = false
 var can_triangulate = false
+
+func line_to_vec2i_range(a: Vector2i ,b: Vector2i) -> Array[Vector2i]:
+	var accum: Array[Vector2i] = [a]
+	var vec = a
+	while vec != b:
+		if vec.x < b.x:
+			vec.x += 1
+		elif vec.x > b.x:
+			vec.x -= 1
+		if vec.y < b.y:
+			vec.y += 1
+		elif vec.y > b.y:
+			vec.y -= 1
+				
+		accum.append(vec)
+
+	accum.append(b)
+	return accum
+
+func get_random_point_in_circle(radius: float) -> Vector2:
+	randomize()
+	var t = 2* PI * randf()
+	randomize()
+	var u = randf() + randf()
+	var r = null
+	if u > 1:
+		r = 2-u 
+	else:
+		r = u 
+	return Vector2(radius * r * cos(t), radius * r * sin(t))
+
+
 
 func make_room(id: int) -> Room:
 		var room: = Room.new(id)
@@ -94,6 +128,8 @@ func make_room(id: int) -> Room:
 		cr.position = node.position - (cr.size / 2)
 		cr.z_index = -1
 
+		if not show_bodies:
+			node.visible = false
 		node.position = room.round_room_size(get_random_point_in_circle(room_generation_radius), min_room_size)
 		node.mass = 100
 		add_child(node)
@@ -114,6 +150,7 @@ func generate_rooms():
 
 func regenerate_rooms():
 	selected_rooms = []
+	hallways_lines = []
 	for room in rooms.keys():
 		rooms.get(room).body.queue_free()
 	rooms.clear()
@@ -122,6 +159,11 @@ func regenerate_rooms():
 	for room in rooms.values():
 		add_colison_shape(room)
 	seperating = true
+	
+	for y in 2000:
+		for x in 2000:
+			tilemap.set_cell(0, Vector2i(x - 1000, y - 1000), -1)
+
 	get_tree().create_timer(1).timeout.connect(func():if seperating: var moving = are_rooms_moving(); seperating  = !moving; can_triangulate = moving)
 	
 
@@ -187,8 +229,14 @@ func add_edges(graph: RoomGraph):
 		add_edge.call(triange_edge_to_room_edge(triangle.edge_ca))
 
 func triange_edge_to_room_edge(edge: Delaunay.Edge) -> Array:
-	var node_a: Room = selected_rooms.filter(func(room: Room): if room.get_room_center() == edge.a: return true else: return false ).front()
-	var node_b: Room = selected_rooms.filter(func(room: Room): if room.get_room_center() == edge.b: return true else: return false ).front()
+	var filtered_a = selected_rooms.filter(func(room: Room): if room.get_room_center() == edge.a: return true else: return false )
+	var node_a: Room
+	if filtered_a:
+		node_a = filtered_a.front()
+	var filtered_b = selected_rooms.filter(func(room: Room): if room.get_room_center() == edge.b: return true else: return false )
+	var node_b: Room
+	if filtered_b:
+		node_b = filtered_b.front()
 	var distance = 0
 	if node_a and node_b:
 		distance = node_a.get_room_center().distance_to(node_b.get_room_center())
@@ -205,7 +253,44 @@ func get_lines_from_edges(edge: RoomGraph.RoomGraphEdge) -> Array[Vector2]:
 	
 	return [ node_a, Vector2(node_b.x, node_a.y), node_b, Vector2(node_b.x, node_a.y) ]
 
+
+func paint_rect(rect: Rect2):
+	var width = abs(rect.position.x) + rect.size.x
+	var x_range  = [] 
+	for w in width:
+		x_range.append(rect.position.x +  w)
+	var height = abs(rect.position.y) + rect.size.y
+	var y_range  = [] 
+	for h in abs(height):
+		y_range.append(rect.position.y +  h)
+	print(height)
+	for y in y_range:
+		for x in x_range:
+			tilemap.set_cell(0, Vector2i(x, y), 0, Vector2i(0, 0))
 	
+	
+func paint_map():
+	for y in mask.height:
+		for x in mask.width:
+			if mask.matrix[y][x] != 0 or mask.matrix[y][x] != -1:
+					tilemap.set_cell(0, Vector2i(x, y), 0, Vector2i(1, 0))
+			if mask.matrix[y][x] == 0:
+					tilemap.set_cell(0, Vector2i(x, y), 0, Vector2i(0, 0))
+			if mask.matrix[y][x] == -1:
+					tilemap.set_cell(0, Vector2i(x, y), 0, Vector2i(2, 0))
+
+
+func paint_room(room: Room):
+	for y in room.rect.size.y:
+		for x in room.rect.size.x:
+			tilemap.set_cell(0, Vector2i(int(x) + int(room.rect.position.x),int(y) + int(room.rect.position.y)), 0, Vector2i(1,0))
+
+
+func paint_hallway(a: Vector2, b: Vector2):
+	for vec in line_to_vec2i_range(a, b):
+		if tilemap.get_cell_atlas_coords(0, vec) != Vector2i(1,0):
+			tilemap.set_cell(0, vec, 0, Vector2i(2,0))
+
 func _ready():
 	regenerate_rooms()
 
@@ -214,7 +299,7 @@ func _draw():
 	draw_set_transform_matrix(global_transform.affine_inverse())
 	if seperating: 
 		return
-	if delaunay_rect:
+	if delaunay_rect_debug:
 		draw_rect(delaunay_rect, Color(0.2,0.3, 0.8, 0.3))
 	#for edge: RoomGraph.RoomGraphEdge in room_graph.edges:
 	#	var color = edge_color.sample(remap(edge.weight, 0, 200, 0, 1))
@@ -222,11 +307,18 @@ func _draw():
 	if mst_debug:
 		for edge: RoomGraph.RoomGraphEdge in mst:
 			var color = edge_color.sample(remap(edge.weight, 0, 200, 0, 1))
-			draw_line(edge.node_a.value.get_room_center(), edge.node_b.value.get_room_center(), color,  -1, true)
-	if hallways_lines:
+			draw_line(edge.node_a.value.get_room_center() * 16, edge.node_b.value.get_room_center() * 16, color,  -1, true)
+		for edge: RoomGraph.RoomGraphEdge in mst:
+			var color = edge_color.sample(remap(edge.weight, 0, 200, 0, 1))
+			draw_line(edge.node_a.value.get_room_center(), edge.node_b.value.get_room_center() , color,  -1, true)
+	if pathways_debug:
 		for lines in hallways_lines:
-			draw_line(lines[0], lines[1], Color.BLUE,  2, true)
-			draw_line(lines[2], lines[3], Color.PINK,  2, true)
+			draw_line(lines[0] * 16, lines[1] * 16, Color.BLUE,  2, true)
+			draw_circle(lines[0] * 16, 16, Color.BLUE  )
+			#draw_circle(lines[1] * 16, 16, Color.BLUE  )
+			draw_line(lines[2] * 16, lines[3] * 16, Color.PINK,  2, true)
+			draw_circle(lines[2] * 16, 16, Color.BLUE  )
+			#draw_circle(lines[3] * 16, 16, Color.BLUE  )
 
 func _process(_delta):
 	if Input.is_action_just_pressed("regenrate"):
@@ -235,8 +327,8 @@ func _process(_delta):
 		for room: Room in rooms.values():
 			room.update_room_position()
 		selected_rooms = select_main_rooms(selected_room_size_treshold)
-		for room in selected_rooms:
-			room.body.get_child(0).color = Color.RED
+		#for room in selected_rooms:
+			#room.body.get_child(0).color = Color.RED
 		for room in rooms.values():
 			if not selected_rooms.has(room):
 				remove_child(room.body)
@@ -247,6 +339,22 @@ func _process(_delta):
 		add_not_used_eges(non_mst_edges_treshold)
 		for edge in mst:
 			hallways_lines.append(get_lines_from_edges(edge))
+
+		#mask = RoomMask.new(int(delaunay_rect.size.x +  (delaunay_rect.size.x * map_padding)), int(delaunay_rect.size.y +  (delaunay_rect.size.y * map_padding)))
+		#for room in selected_rooms:
+		#	mask.add_room(room)
+		#for hallway in hallways_lines:
+		#	mask.add_hallway(hallway[0], hallway[1])
+		#	mask.add_hallway(hallway[2], hallway[3])
+		#paint_map()
+		var padded_rect: Rect2 = delaunay_rect
+		padded_rect.position += (padded_rect.position * map_padding)
+		paint_rect(padded_rect)
+		for room in selected_rooms:
+			paint_room(room)
+		for hallway in hallways_lines:
+			paint_hallway(hallway[0], hallway[1])
+			paint_hallway(hallway[2], hallway[3])
 		can_triangulate = false
 	
 	queue_redraw()

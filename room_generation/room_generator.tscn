@@ -1,18 +1,47 @@
-[gd_scene load_steps=3 format=3 uid="uid://bw1165nygn46s"]
+[gd_scene load_steps=7 format=3 uid="uid://bw1165nygn46s"]
 
 [ext_resource type="Script" path="res://room_generation/room_generator.gd" id="1_ac6gd"]
+[ext_resource type="Script" path="res://room_generation/Camera2D.gd" id="2_hlggq"]
+[ext_resource type="Texture2D" uid="uid://b5v462obvkjoi" path="res://tileset.png" id="2_jbp5y"]
 
 [sub_resource type="Gradient" id="Gradient_kib3s"]
 offsets = PackedFloat32Array(0.268908, 0.714286, 1)
 colors = PackedColorArray(1.54018e-06, 0.905693, 0.424678, 1, 1, 0.833333, 0, 1, 1, 0.11, 0.317666, 1)
 
+[sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_74l2t"]
+texture = ExtResource("2_jbp5y")
+0:0/0 = 0
+0:0/0/physics_layer_0/linear_velocity = Vector2(0, 0)
+0:0/0/physics_layer_0/angular_velocity = 0.0
+0:0/0/physics_layer_0/polygon_0/points = PackedVector2Array(-8, -8, 8, -8, 8, 8, -8, 8)
+1:0/0 = 0
+1:0/0/physics_layer_0/linear_velocity = Vector2(0, 0)
+1:0/0/physics_layer_0/angular_velocity = 0.0
+2:0/0 = 0
+2:0/0/physics_layer_0/linear_velocity = Vector2(0, 0)
+2:0/0/physics_layer_0/angular_velocity = 0.0
+3:0/0 = 0
+3:0/0/physics_layer_0/linear_velocity = Vector2(0, 0)
+3:0/0/physics_layer_0/angular_velocity = 0.0
+
+[sub_resource type="TileSet" id="TileSet_rrbbk"]
+physics_layer_0/collision_layer = 2
+physics_layer_0/collision_mask = 2
+sources/0 = SubResource("TileSetAtlasSource_74l2t")
+
 [node name="RoomGenerator" type="Node2D"]
 script = ExtResource("1_ac6gd")
-number_of_rooms = 200
-min_room_size = 24
+min_room_size = 16
 max_room_size = 64
-room_generation_radius = 200
+map_padding = 0.5
 edge_color = SubResource("Gradient_kib3s")
-delaunay_rect_debug = true
 
 [node name="Camera2D" type="Camera2D" parent="."]
+script = ExtResource("2_hlggq")
+speed = 800
+zoom_min = 0.01
+
+[node name="TileMap" type="TileMap" parent="."]
+z_index = -1
+tile_set = SubResource("TileSet_rrbbk")
+format = 2
