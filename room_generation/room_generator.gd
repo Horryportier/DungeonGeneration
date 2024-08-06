@@ -4,7 +4,9 @@ extends Node2D
 ##=========================================================================
 ## RoomGenrator
 ## TODO: 
-##	refactor it into drop in solution
+##	- refactor it into drop in solution
+##	- apply padding to rooms (no gap between some rooms) 
+##
 ##=========================================================================
 
 
@@ -13,6 +15,7 @@ extends Node2D
 @export var min_room_size: int = 4
 @export var max_room_size: int = 16
 @export var room_generation_radius: int = 50
+@export_range(1, 2) var room_padding: float = 1
 @export_range(0, 1) var selected_room_size_treshold: float = 0.3
 
 @export_group("hallways_generation")
@@ -182,6 +185,7 @@ func add_colison_shape(room: Room):
 	var rect: = RectangleShape2D.new()
 	rect.size = room.body.get_child(0).size
 	collison_shape.shape = rect
+	collison_shape.scale =  collison_shape.scale * room_padding
 	room.body.add_child(collison_shape)
 
 
@@ -270,7 +274,6 @@ func paint_rect(rect: Rect2):
 	var y_range  = [] 
 	for h in abs(height):
 		y_range.append(rect.position.y +  h)
-	print(height)
 	for y in y_range:
 		for x in x_range:
 			tilemap.set_cell(0, Vector2i(x, y), 0, Vector2i(0, 0))
@@ -341,26 +344,18 @@ func _process(_delta):
 		for room: Room in rooms.values():
 			room.update_room_position()
 		selected_rooms = select_main_rooms(selected_room_size_treshold)
-		#for room in selected_rooms:
-			#room.body.get_child(0).color = Color.RED
+
 		for room in rooms.values():
 			if not selected_rooms.has(room):
 				remove_child(room.body)
 		triangulate_selected_rooms()
 		room_graph =  crate_graph()
-		#room_graph.print_edges()
 		mst = room_graph.minimal_spanning_tree()
 		add_not_used_eges(non_mst_edges_treshold)
 		for edge in mst:
 			hallways_lines.append(get_lines_from_edges(edge))
 
-		#mask = RoomMask.new(int(delaunay_rect.size.x +  (delaunay_rect.size.x * map_padding)), int(delaunay_rect.size.y +  (delaunay_rect.size.y * map_padding)))
-		#for room in selected_rooms:
-		#	mask.add_room(room)
-		#for hallway in hallways_lines:
-		#	mask.add_hallway(hallway[0], hallway[1])
-		#	mask.add_hallway(hallway[2], hallway[3])
-		#paint_map()
+		
 		var padded_rect: Rect2 = delaunay_rect
 		padded_rect.position += (padded_rect.position * map_padding)
 		paint_rect(padded_rect)
@@ -370,5 +365,9 @@ func _process(_delta):
 			paint_hallway(hallway[0], hallway[1])
 			paint_hallway(hallway[2], hallway[3])
 		can_triangulate = false
+	else:
+		for room: Room in rooms.values():
+			room.body.position = room.body.position.floor()
+			
 	
 	queue_redraw()
