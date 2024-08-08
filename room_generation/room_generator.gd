@@ -1,39 +1,50 @@
 class_name RoomGenerator
 extends Node2D
-
-##=========================================================================
-## RoomGenrator
-## TODO: 
-##	- refactor it into drop in solution
-##	- apply padding to rooms (no gap between some rooms) 
-##
-##=========================================================================
+## RoomGenerator
+## genereates random rooms connected with hallways
 
 
 @export_group("room_generation")
+## inital number of room 
 @export var number_of_rooms: int = 100
+
 @export var min_room_size: int = 4
 @export var max_room_size: int = 16
+## radius in which rooms will be spawned at the beginig
 @export var room_generation_radius: int = 50
-@export_range(1, 2) var room_padding: float = 1
+## padding between rooms used to give more space between rooms while seprating
+@export_range(1, 2) var room_padding: float = 1.5
+## amonut off rooms seleceted to be main rooms  (1 all rooms get selected, 0 none are seleced) 
+## NOTE: best to keep it low for the best result
 @export_range(0, 1) var selected_room_size_treshold: float = 0.3
 
 @export_group("hallways_generation")
+## amonut of edges added back to minimal spannig tree 
 @export_range(0, 1) var non_mst_edges_treshold: float = 0.1
+## TODO: not correctly implemented yet
 @export var hallway_width: int = 4
 
 
 @export_group("map_generation")
+## how much of terrain to generate around bounds of the rooms
 @export_range(0, 1) var map_padding: float = 0.1
 
+@export_group("tilemap")
+@export var tilemap: TileMap 
+@export var wall_cords: Vector2i = Vector2i.ZERO
+@export var floor_cords: Vector2i = Vector2i.ZERO
+@export var hallways_cords: Vector2i = Vector2i.ZERO
+
 @export_group("debug")
+@export var debug_enable: bool
 @export var edge_color: Gradient 
 @export var delaunay_rect_debug: bool
 @export var mst_debug: bool
 @export var pathways_debug: bool
 @export var show_bodies: bool
 
-@onready var tilemap: TileMap = $TileMap
+
+signal bodies_stopped_moving
 
 enum LineOrientation { Vertical, Horizontal }
 
@@ -152,19 +163,20 @@ func make_room(id: int) -> Room:
 
 	
 
-func generate_rooms():
+func create_rooms():
 	for i in number_of_rooms:
 		var room =  make_room(i + 1)
 		rooms[room.id] = room
 		
 
-func regenerate_rooms():
+## use this function to generate dungeon
+func generate_dungeon():
 	selected_rooms = []
 	hallways_lines = []
 	for room in rooms.keys():
 		rooms.get(room).body.queue_free()
 	rooms.clear()
-	generate_rooms()
+	create_rooms()
 	# seperate
 	for room in rooms.values():
 		add_colison_shape(room)
@@ -174,7 +186,7 @@ func regenerate_rooms():
 		for x in 2000:
 			tilemap.set_cell(0, Vector2i(x - 1000, y - 1000), -1)
 
-	get_tree().create_timer(1).timeout.connect(func():if seperating: var moving = are_rooms_moving(); seperating  = !moving; can_triangulate = moving)
+	get_tree().create_timer(1).timeout.connect(func():if seperating: var moving = are_rooms_moving(); seperating  = !moving; if moving: call_deferred("_on_bodies_stopped_moving"))
 	
 
 func add_colison_shape(room: Room):
@@ -235,11 +247,11 @@ func add_nodes(graph: RoomGraph):
 func add_edges(graph: RoomGraph):
 	var add_edge = func(arr: Array): if arr.size() == 0: return elif arr[0] and arr[1]: graph.add_edge(arr[0], arr[1], arr[2]);
 	for triangle: Delaunay.Triangle in triangles:
-		add_edge.call(triange_edge_to_room_edge(triangle.edge_ab))
-		add_edge.call(triange_edge_to_room_edge(triangle.edge_bc))
-		add_edge.call(triange_edge_to_room_edge(triangle.edge_ca))
+		add_edge.call(triangle_edge_to_room_edge(triangle.edge_ab))
+		add_edge.call(triangle_edge_to_room_edge(triangle.edge_bc))
+		add_edge.call(triangle_edge_to_room_edge(triangle.edge_ca))
 
-func triange_edge_to_room_edge(edge: Delaunay.Edge) -> Array:
+func triangle_edge_to_room_edge(edge: Delaunay.Edge) -> Array:
 	var filtered_a = selected_rooms.filter(func(room: Room): if room.get_room_center() == edge.a: return true else: return false )
 	var node_a: Room
 	if filtered_a:
@@ -276,24 +288,12 @@ func paint_rect(rect: Rect2):
 		y_range.append(rect.position.y +  h)
 	for y in y_range:
 		for x in x_range:
-			tilemap.set_cell(0, Vector2i(x, y), 0, Vector2i(0, 0))
+			tilemap.set_cell(0, Vector2i(x, y), 0, wall_cords)
 	
-	
-func paint_map():
-	for y in mask.height:
-		for x in mask.width:
-			if mask.matrix[y][x] != 0 or mask.matrix[y][x] != -1:
-					tilemap.set_cell(0, Vector2i(x, y), 0, Vector2i(1, 0))
-			if mask.matrix[y][x] == 0:
-					tilemap.set_cell(0, Vector2i(x, y), 0, Vector2i(0, 0))
-			if mask.matrix[y][x] == -1:
-					tilemap.set_cell(0, Vector2i(x, y), 0, Vector2i(2, 0))
-
-
 func paint_room(room: Room):
 	for y in room.rect.size.y:
 		for x in room.rect.size.x:
-			tilemap.set_cell(0, Vector2i(int(x) + int(room.rect.position.x),int(y) + int(room.rect.position.y)), 0, Vector2i(1,0))
+			tilemap.set_cell(0, Vector2i(int(x) + int(room.rect.position.x),int(y) + int(room.rect.position.y)), 0, floor_cords)
 
 
 func paint_hallway(a: Vector2, b: Vector2):
@@ -305,11 +305,9 @@ func paint_hallway(a: Vector2, b: Vector2):
 					vec.x += i  
 				LineOrientation.Horizontal:
 					vec.y -= i 
-			if tilemap.get_cell_atlas_coords(0, vec) != Vector2i(1,0):
-				tilemap.set_cell(0, vec, 0, Vector2i(2,0))
+			if tilemap.get_cell_atlas_coords(0, vec) != floor_cords:
+				tilemap.set_cell(0, vec, 0, hallways_cords)
 
-func _ready():
-	regenerate_rooms()
 
 
 func _draw():
@@ -318,9 +316,7 @@ func _draw():
 		return
 	if delaunay_rect_debug:
 		draw_rect(delaunay_rect, Color(0.2,0.3, 0.8, 0.3))
-	#for edge: RoomGraph.RoomGraphEdge in room_graph.edges:
-	#	var color = edge_color.sample(remap(edge.weight, 0, 200, 0, 1))
-	#	draw_line(edge.node_a.value.get_room_center(), edge.node_b.value.get_room_center(), color,  -1, true)
+	
 	if mst_debug:
 		for edge: RoomGraph.RoomGraphEdge in mst:
 			var color = edge_color.sample(remap(edge.weight, 0, 200, 0, 1))
@@ -332,15 +328,11 @@ func _draw():
 		for lines in hallways_lines:
 			draw_line(lines[0] * 16, lines[1] * 16, Color.BLUE,  2, true)
 			draw_circle(lines[0] * 16, 16, Color.BLUE  )
-			#draw_circle(lines[1] * 16, 16, Color.BLUE  )
 			draw_line(lines[2] * 16, lines[3] * 16, Color.PINK,  2, true)
 			draw_circle(lines[2] * 16, 16, Color.BLUE  )
-			#draw_circle(lines[3] * 16, 16, Color.BLUE  )
 
-func _process(_delta):
-	if Input.is_action_just_pressed("regenrate"):
-		regenerate_rooms()
-	if can_triangulate:
+
+func _on_bodies_stopped_moving():
 		for room: Room in rooms.values():
 			room.update_room_position()
 		selected_rooms = select_main_rooms(selected_room_size_treshold)
@@ -348,6 +340,7 @@ func _process(_delta):
 		for room in rooms.values():
 			if not selected_rooms.has(room):
 				remove_child(room.body)
+
 		triangulate_selected_rooms()
 		room_graph =  crate_graph()
 		mst = room_graph.minimal_spanning_tree()
@@ -364,10 +357,11 @@ func _process(_delta):
 		for hallway in hallways_lines:
 			paint_hallway(hallway[0], hallway[1])
 			paint_hallway(hallway[2], hallway[3])
-		can_triangulate = false
-	else:
+
+func _process(_delta):
+	if seperating:
 		for room: Room in rooms.values():
 			room.body.position = room.body.position.floor()
 			
-	
-	queue_redraw()
+	if not seperating and debug_enable:
+		queue_redraw()

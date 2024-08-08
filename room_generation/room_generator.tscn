@@ -29,13 +29,15 @@ physics_layer_0/collision_layer = 2
 physics_layer_0/collision_mask = 2
 sources/0 = SubResource("TileSetAtlasSource_74l2t")
 
-[node name="RoomGenerator" type="Node2D"]
+[node name="RoomGenerator" type="Node2D" node_paths=PackedStringArray("tilemap")]
 script = ExtResource("1_ac6gd")
 min_room_size = 16
 max_room_size = 64
-room_padding = 1.5
 hallway_width = 2
 map_padding = 0.5
+tilemap = NodePath("TileMap")
+floor_cords = Vector2i(1, 0)
+hallways_cords = Vector2i(2, 0)
 edge_color = SubResource("Gradient_kib3s")
 
 [node name="Camera2D" type="Camera2D" parent="."]
