@@ -30,7 +30,7 @@ extends Node2D
 @export_range(0, 1) var map_padding: float = 0.1
 
 @export_group("tilemap")
-@export var tilemap: TileMap 
+@export var tilemap: TileMapLayer
 @export var wall_cords: Vector2i = Vector2i.ZERO
 @export var floor_cords: Vector2i = Vector2i.ZERO
 @export var hallways_cords: Vector2i = Vector2i.ZERO
@@ -184,7 +184,7 @@ func generate_dungeon():
 	
 	for y in 2000:
 		for x in 2000:
-			tilemap.set_cell(0, Vector2i(x - 1000, y - 1000), -1)
+			tilemap.set_cell(Vector2i(x - 1000, y - 1000), -1)
 
 	get_tree().create_timer(1).timeout.connect(func():if seperating: var moving = are_rooms_moving(); seperating  = !moving; if moving: call_deferred("_on_bodies_stopped_moving"))
 	
@@ -288,12 +288,12 @@ func paint_rect(rect: Rect2):
 		y_range.append(rect.position.y +  h)
 	for y in y_range:
 		for x in x_range:
-			tilemap.set_cell(0, Vector2i(x, y), 0, wall_cords)
+			tilemap.set_cell(Vector2i(x, y), 0, wall_cords)
 	
 func paint_room(room: Room):
 	for y in room.rect.size.y:
 		for x in room.rect.size.x:
-			tilemap.set_cell(0, Vector2i(int(x) + int(room.rect.position.x),int(y) + int(room.rect.position.y)), 0, floor_cords)
+			tilemap.set_cell(Vector2i(int(x) + int(room.rect.position.x),int(y) + int(room.rect.position.y)), 0, floor_cords)
 
 
 func paint_hallway(a: Vector2, b: Vector2):
@@ -305,8 +305,8 @@ func paint_hallway(a: Vector2, b: Vector2):
 					vec.x += i  
 				LineOrientation.Horizontal:
 					vec.y -= i 
-			if tilemap.get_cell_atlas_coords(0, vec) != floor_cords:
-				tilemap.set_cell(0, vec, 0, hallways_cords)
+			if tilemap.get_cell_atlas_coords(vec) != floor_cords:
+				tilemap.set_cell(vec, 0, hallways_cords)
 
 
 
