@@ -11,9 +11,13 @@ config_version=5
 [application]
 
 config/name="DungeonGeneration"
-run/main_scene="res://room_generation/room_generator.tscn"
+run/main_scene="res://world.tscn"
 config/features=PackedStringArray("4.2", "Forward Plus")
 config/icon="res://icon.svg"
+
+[editor_plugins]
+
+enabled=PackedStringArray("res://addons/room_generation/plugin.cfg", "res://addons/room_generator/plugin.cfg", "res://addons/roomgenerator/plugin.cfg")
 
 [input]
 

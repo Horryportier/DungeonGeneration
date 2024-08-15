@@ -147,7 +147,7 @@ func make_room(id: int) -> Room:
 		cr.color = Color(randf(), randf(), randf(), 1)
 		cr.size = room.round_room_size(get_random_point_in_circle(max_room_size), min_room_size).abs()
 		cr.position = node.position - (cr.size / 2)
-		cr.z_index = -1
+		cr.z_index = 100
 
 		if not show_bodies:
 			node.visible = false
